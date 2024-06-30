@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Game</title>
+    <style>
+        canvas {
+            border: 5px solid black; /* Thicker border */
+            display: block;
+            margin: 0 auto;
+        }
+        body {
+            margin: 0;
+            overflow: hidden;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas" width="800" height="400"></canvas>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Load the orange box image
+        const orangeBoxImage = new Image();
+        orangeBoxImage.src = 'orangeboximage.png'; // Using the actual image file name
+
+        let player = { x: 50, y: 300, width: 50, height: 50, speed: 5 };
+        let boxes = []; // Array to hold both red and orange boxes
+        let keys = {};
+        let isJumping = false;
+        let gravity = 1;
+        let jumpPower = 15;
+        let velocityY = 0;
+        let killCount = 0; // Kill counter
+        let lives = 3; // Number of lives
+        const floor = { x: 0, y: 350, width: canvas.width, height: 50 };
+        const borderThickness = 5; // Border thickness
+
+        // Obstacles array
+        const obstacles = [
+            { x: 200, y: 300, width: 20, height: 50 },
+            { x: 400, y: 250, width: 20, height: 50 },
+            { x: 600, y: 320, width: 20, height: 50 }
+        ];
+
+        function drawPlayer() {
+            ctx.fillStyle = 'blue';
+            ctx.fillRect(player.x, player.y, player.width, player.height);
+        }
+
+        function drawBoxes() {
+            for (let box of boxes) {
+                if (box.visible) {
+                    if (box.color === 'red') {
+                        ctx.fillStyle = 'red';
+                        ctx.fillRect(box.x, box.y, box.width, box.height);
+                    } else if (box.color === 'orange') {
+                        ctx.drawImage(orangeBoxImage, box.x, box.y, box.width, box.height);
+                    }
+                }
+            }
+        }
+
+        function drawFloor() {
+            ctx.fillStyle = 'green';
+            ctx.fillRect(floor.x, floor.y, floor.width, floor.height);
+        }
+
+        function drawKillCount() {
+            ctx.fillStyle = 'black';
+            ctx.font = '20px Arial';
+            ctx.fillText('Kills: ' + killCount, 10, 30);
+        }
+
+        function drawLives() {
+            ctx.fillStyle = 'red';
+            ctx.font = '20px Arial';
+            ctx.fillText('Lives: ' + lives, canvas.width - 100, 30);
+        }
+
+        function clearCanvas() {
+            // Fill the canvas with a blue background
+            ctx.fillStyle = 'lightblue'; // Light blue background
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+
+        function drawObstacles() {
+            ctx.fillStyle = 'black';
+            for (let obstacle of obstacles) {
+                ctx.beginPath();
+                ctx.moveTo(obstacle.x, obstacle.y + obstacle.height);
+                ctx.lineTo(obstacle.x + obstacle.width / 2, obstacle.y);
+                ctx.lineTo(obstacle.x + obstacle.width, obstacle.y + obstacle.height);
+                ctx.closePath();
+                ctx.fill();
+            }
+        }
+
+        function getRandomPosition() {
+            const minY = Math.max(borderThickness, player.y - 100); // Ensure boxes are reachable above the player
+            const maxY = Math.min(canvas.height - floor.height - borderThickness * 2, player.y + 100); // Ensure boxes are reachable below the player
+            const x = Math.random() * (canvas.width - 50 - borderThickness * 2) + borderThickness;
+            const y = Math.random() * (maxY - minY) + minY;
+            return { x, y };
+        }
+
+        function createBox(color) {
+            const position = getRandomPosition();
+            return {
+                x: position.x,
+                y: position.y,
+                width: 50,
+                height: 50,
+                color: color,
+                visible: true
+            };
+        }
+
+        function updatePlayer() {
+            if (keys['KeyD'] && player.x + player.width < canvas.width - borderThickness) {
+                player.x += player.speed;
+            }
+            if (keys['KeyA'] && player.x > borderThickness) {
+                player.x -= player.speed;
+            }
+            if (keys['Space'] && !isJumping) {
+                isJumping = true;
+                velocityY = jumpPower;
+            }
+            
+            if (isJumping) {
+                velocityY -= gravity;
+                player.y -= velocityY;
+                if (player.y + player.height >= floor.y) {
+                    player.y = floor.y - player.height;
+                    isJumping = false;
+                    velocityY = 0;
+                }
+            }
+
+            // Check collision with boxes
+            for (let box of boxes) {
+                if (box.visible && player.x < box.x + box.width &&
+                    player.x + player.width > box.x &&
+                    player.y < box.y + box.height &&
+                    player.y + player.height > box.y) {
+                    box.visible = false;
+                    if (box.color === 'red') {
+                        killCount++; // Increment kill count
+                        // Reappear red box after 3 seconds
+                        setTimeout(() => {
+                            box.visible = true;
+                            const newPosition = getRandomPosition();
+                            box.x = newPosition.x;
+                            box.y = newPosition.y;
+                        }, 3000);
+                        // Spawn an orange box
+                        boxes.push(createBox('orange'));
+                    } else if (box.color === 'orange') {
+                        lives--; // Decrease life count
+                        if (lives === 0) {
+                            // Game over condition
+                            alert('Game Over!');
+                            location.reload(); // Reload the page to restart the game
+                        }
+                    }
+                }
+            }
+
+            // Check collision with obstacles
+            for (let obstacle of obstacles) {
+                const playerBottom = player.y + player.height;
+                const playerRight = player.x + player.width;
+                const obstacleBottom = obstacle.y + obstacle.height;
+                const obstacleRight = obstacle.x + obstacle.width;
+
+                // Check if player intersects with the triangle obstacle
+                if (player.x < obstacleRight &&
+                    playerRight > obstacle.x &&
+                    player.y < obstacleBottom &&
+                    playerBottom > obstacle.y) {
+                    lives--; // Decrease life count
+                    if (lives === 0) {
+                        // Game over condition
+                        alert('Game Over!');
+                        location.reload(); // Reload the page to restart the game
+                    }
+                }
+            }
+        }
+
+        function gameLoop() {
+            clearCanvas();
+            drawFloor();
+            drawBoxes();
+            drawObstacles(); // Draw obstacles
+            drawPlayer();
+            drawKillCount();
+            drawLives();
+            updatePlayer();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function spawnBoxes() {
+            // Spawn red box if no red boxes are present
+            let redBoxes = boxes.filter(box => box.color === 'red');
+            if (redBoxes.length === 0) {
+                boxes.push(createBox('red'));
+            }
+
+            // Spawn orange boxes
+            for (let i = 0; i < 10; i++) { // Change 10 to adjust the number of boxes spawned
+                if (Math.random() < 0.1) { // 10% chance for orange box
+                    boxes.push(createBox('orange'));
+                }
+            }
+        }
+
+        // Spawn initial boxes
+        spawnBoxes();
+
+        document.addEventListener('keydown', (e) => {
+            keys[e.code] = true;
+        });
+
+        document.addEventListener('keyup', (e) => {
+            keys[e.code] = false;
+        });
+
+        gameLoop();
+    </script>
+</body>
+</html>
